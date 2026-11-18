@@ -92,6 +92,8 @@ p, *, *, GET, /api/get-init-admin-status, *, *
 p, *, *, POST, /api/init-admin-password, *, *
 p, *, *, POST, /api/send-verification-code, *, *
 p, *, *, POST, /api/mfa/push/send, *, *
+p, *, *, POST, /api/mfa/verify, *, *
+p, *, *, POST, /api/mfa/send, *, *
 p, *, *, GET, /api/get-user-personal-info, *, *
 p, *, *, GET, /api/get-mcp-records, *, *
 p, *, *, GET, /api/get-my-mcp-servers, *, *

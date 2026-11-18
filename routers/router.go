@@ -479,6 +479,8 @@ func InitAPI() {
 	web.Router("/api/mfa/setup/initiate", &controllers.ApiController{}, "POST:MfaSetupInitiate")
 	web.Router("/api/mfa/setup/verify", &controllers.ApiController{}, "POST:MfaSetupVerify")
 	web.Router("/api/mfa/setup/enable", &controllers.ApiController{}, "POST:MfaSetupEnable")
+	web.Router("/api/mfa/verify", &controllers.ApiController{}, "POST:MfaVerify")
+	web.Router("/api/mfa/send", &controllers.ApiController{}, "POST:MfaSend")
 	web.Router("/api/mfa/push/send", &controllers.ApiController{}, "POST:SendMfaPush")
 	web.Router("/api/mfa/push/challenge", &controllers.ApiController{}, "GET:GetMfaPushChallenge")
 	web.Router("/api/mfa/push/answer", &controllers.ApiController{}, "POST:AnswerMfaPushChallenge")

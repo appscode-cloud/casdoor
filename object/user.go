@@ -251,6 +251,7 @@ type User struct {
 	MfaAccounts         []MfaAccount     `xorm:"mfaAccounts blob" json:"mfaAccounts"`
 	MfaItems            []*MfaItem       `xorm:"varchar(300)" json:"mfaItems"`
 	MfaRememberDeadline string           `xorm:"varchar(100)" json:"mfaRememberDeadline"`
+	MfaTotpLastStep     int64            `xorm:"bigint default 0" json:"-"`
 	NeedUpdatePassword  bool             `json:"needUpdatePassword"`
 	IpWhitelist         string           `xorm:"varchar(200)" json:"ipWhitelist"`
 	ApplicationScopes   []ConsentRecord  `xorm:"mediumtext" json:"applicationScopes"`
@@ -1103,6 +1104,8 @@ func UpdateUserForAllFields(id string, user *User) (bool, error) {
 	}
 
 	user.UpdatedTime = util.GetCurrentTime()
+	// the replay guard of the step-up check is not a field that an update may set
+	user.MfaTotpLastStep = oldUser.MfaTotpLastStep
 
 	if len(user.Groups) > 0 {
 		_, err = userEnforcer.UpdateGroupsForUser(user.GetId(), user.Groups)

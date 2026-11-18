@@ -666,6 +666,7 @@ func restoreAdminOnlyUserFields(oldUser, newUser *User) {
 	newUser.MfaEmailEnabled = oldUser.MfaEmailEnabled
 	newUser.MfaItems = oldUser.MfaItems
 	newUser.MfaRememberDeadline = oldUser.MfaRememberDeadline
+	newUser.MfaTotpLastStep = oldUser.MfaTotpLastStep
 	newUser.SigninWrongTimes = oldUser.SigninWrongTimes
 	newUser.LastSigninWrongTime = oldUser.LastSigninWrongTime
 	newUser.LastChangePasswordTime = oldUser.LastChangePasswordTime

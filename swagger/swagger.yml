@@ -3252,6 +3252,33 @@ paths:
       responses:
         "200":
           description: '{string} Prometheus metrics in text format'
+  /api/mfa/send:
+    post:
+      tags:
+      - MFA API
+      description: "send a code of the enrolled email, SMS or push factor of the signed-in user, to the destination stored in the user only"
+      operationId: ApiController.MfaSend
+      parameters:
+      - in: formData
+        name: mfaType
+        description: "The enrolled MFA type (email/sms/push)"
+        required: true
+        type: string
+      - in: formData
+        name: owner
+        description: "The owner of the user, for an application with client credentials"
+        required: false
+        type: string
+      - in: formData
+        name: name
+        description: "The name of the user, for an application with client credentials"
+        required: false
+        type: string
+      responses:
+        "200":
+          description: The Response object
+          schema:
+            $ref: '#/definitions/controllers.Response'
   /api/mfa/setup/enable:
     post:
       tags:
@@ -3280,6 +3307,58 @@ paths:
       - MFA API
       description: setup verify totp
       operationId: ApiController.MfaSetupVerify
+      responses:
+        "200":
+          description: The Response object
+          schema:
+            $ref: '#/definitions/controllers.Response'
+  /api/mfa/verify:
+    post:
+      tags:
+      - MFA API
+      description: "verify a factor that the signed-in user enrolled, e.g. before a sensitive action. The factor is always the stored one, the master verification code of the organization is not accepted, and a passcode works once. An application with client credentials may name the user (owner and name) of its own organization."
+      operationId: ApiController.MfaVerify
+      parameters:
+      - in: formData
+        name: mfaType
+        description: "The enrolled MFA type (app/sms/email/push/radius)"
+        required: true
+        type: string
+      - in: formData
+        name: passcode
+        description: "The passcode, or the id of the approved push request"
+        required: false
+        type: string
+      - in: formData
+        name: recoveryCode
+        description: "A recovery code, used instead of the passcode, it works once"
+        required: false
+        type: string
+      - in: formData
+        name: owner
+        description: "The owner of the user, for an application with client credentials"
+        required: false
+        type: string
+      - in: formData
+        name: name
+        description: "The name of the user, for an application with client credentials"
+        required: false
+        type: string
+      - in: formData
+        name: proof
+        description: "true to get a signed, short-lived proof of the check"
+        required: false
+        type: string
+      - in: formData
+        name: action
+        description: "The action that the proof approves, kept in the proof"
+        required: false
+        type: string
+      - in: formData
+        name: nonce
+        description: "A value of the caller, kept in the proof"
+        required: false
+        type: string
       responses:
         "200":
           description: The Response object
