@@ -238,7 +238,8 @@ func createDatabaseForPostgres(driverName string, dataSourceName string, dbName 
 }
 
 func (a *Ormer) CreateDatabase() error {
-	if a.driverName == "postgres" {
+	// Postgres databases are created by createDatabaseForPostgres, a SQLite database is its file
+	if a.driverName == "postgres" || a.driverName == "sqlite3" || a.driverName == "sqlite" {
 		return nil
 	}
 
@@ -519,6 +520,11 @@ func (a *Ormer) createTable() {
 	}
 
 	err = a.Engine.Sync2(new(VerificationRecord))
+	if err != nil {
+		panic(err)
+	}
+
+	err = a.Engine.Sync2(new(MfaAttempt))
 	if err != nil {
 		panic(err)
 	}

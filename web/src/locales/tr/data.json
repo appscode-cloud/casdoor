@@ -1474,6 +1474,7 @@
     "Please bind your phone first, the system automatically uses the phone for multi-factor authentication": "Lütfen önce telefonunuzu bağlayın, sistem çok faktörlü kimlik doğrulama için otomatik olarak telefonu kullanacaktır",
     "Please confirm the information below": "Lütfen aşağıdaki bilgileri onaylayın",
     "Please save this recovery code. Once your device cannot provide an authentication code, you can reset mfa authentication by this recovery code": "Lütfen bu kurtarma kodunu kaydedin. Cihazınız bir doğrulama kodu sağlayamazsa, bu kurtarma kodu ile MFA kimlik doğrulamasını sıfırlayabilirsiniz",
+    "Please verify your multi-factor authentication before changing it": "Please verify your multi-factor authentication before changing it",
     "Protect your account with Multi-factor authentication": "Hesabınızı çok faktörlü kimlik doğrulama ile koruyun",
     "Push notification receiver": "Push bildirim alıcısı",
     "Push notification receiver, empty for the linked account": "Alıcı, bağlı hesap için boş bırakın",

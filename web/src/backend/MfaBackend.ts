@@ -81,6 +81,42 @@ export function SetPreferredMfa(values) {
   }).then((res) => res.json());
 }
 
+/** The answer of a change of the factors that needs the user to show one first, see MfaStepUpDialog. */
+export const MfaStepUpRequired = "mfa-step-up-required";
+
+/**
+ * Checks a factor the signed-in user enrolled, or a recovery code. Passing it lets this session set up,
+ * replace or remove factors for a few minutes.
+ */
+export function MfaVerify(values: {mfaType?: string; passcode?: string; recoveryCode?: string}) {
+  const formData = new FormData();
+  formData.append("mfaType", values.mfaType ?? "");
+  formData.append("passcode", values.passcode ?? "");
+  formData.append("recoveryCode", values.recoveryCode ?? "");
+  return fetch(`${Setting.ServerUrl}/api/mfa/verify`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
+/** Sends a code of the signed-in user's email or SMS factor, to the address or phone it was set up with. */
+export function MfaSend(values: {mfaType: string}) {
+  const formData = new FormData();
+  formData.append("mfaType", values.mfaType);
+  return fetch(`${Setting.ServerUrl}/api/mfa/send`, {
+    method: "POST",
+    credentials: "include",
+    body: formData,
+    headers: {
+      "Accept-Language": Setting.getAcceptLanguage(),
+    },
+  }).then(res => res.json());
+}
+
 export function sendMfaPush(values: {provider?: string; receiver?: string; application?: string}) {
   const formData = new FormData();
   formData.append("provider", values.provider ?? "");

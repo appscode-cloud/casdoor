@@ -79,10 +79,12 @@ func (mfa *TotpMfa) SetupVerify(passcode string, lang string) error {
 }
 
 func (mfa *TotpMfa) Enable(user *User) error {
-	columns := []string{"recovery_codes", "preferred_mfa_type", "totp_secret"}
+	columns := []string{"recovery_codes", "preferred_mfa_type", "totp_secret", "mfa_totp_last_time"}
 
 	user.RecoveryCodes = append(user.RecoveryCodes, mfa.RecoveryCodes...)
 	user.TotpSecret = mfa.Secret
+	// a new secret starts without a used code, its period may be another one
+	user.MfaTotpLastTime = 0
 	if user.PreferredMfaType == "" {
 		user.PreferredMfaType = mfa.MfaType
 	}
@@ -95,6 +97,8 @@ func (mfa *TotpMfa) Enable(user *User) error {
 	return nil
 }
 
+// Verify checks a code without the replay guard of a stored factor: the checks of a user's own factor go through
+// VerifyUserMfaPasscode or VerifyEnrolledMfa, which accept a code once
 func (mfa *TotpMfa) Verify(passcode string, lang string) error {
 	if mfa.Secret == "" {
 		return errors.New("totp is not enabled")

@@ -2,6 +2,7 @@ import * as React from "react";
 import i18next from "i18next";
 import {Copy} from "lucide-react";
 import {Button} from "@/components/ui/button";
+import {MfaStepUpDialog, isMfaStepUpRequired} from "@/components/auth/mfa/MfaStepUpDialog";
 import * as MfaBackend from "@/backend/MfaBackend";
 import * as Setting from "@/lib/setting";
 
@@ -26,6 +27,7 @@ export function MfaEnableForm({
   onFail: (res: any) => void;
 }) {
   const [loading, setLoading] = React.useState(false);
+  const [stepUpOpen, setStepUpOpen] = React.useState(false);
   const recoveryCode = recoveryCodes?.[0] ?? "";
 
   const enable = () => {
@@ -34,6 +36,9 @@ export function MfaEnableForm({
       .then((res: any) => {
         if (res.status === "ok") {
           onSuccess(res);
+        } else if (isMfaStepUpRequired(res)) {
+          // a factor turned on meanwhile, in another tab: show it first
+          setStepUpOpen(true);
         } else {
           onFail(res);
         }
@@ -63,6 +68,7 @@ export function MfaEnableForm({
       <Button className="w-full" loading={loading} onClick={enable}>
         {i18next.t("general:Enable")}
       </Button>
+      <MfaStepUpDialog open={stepUpOpen} onOpenChange={setStepUpOpen} mfaItems={user?.multiFactorAuths ?? []} onSuccess={enable} />
     </div>
   );
 }

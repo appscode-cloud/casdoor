@@ -16,15 +16,12 @@ package controllers
 
 import (
 	"encoding/json"
-	"errors"
 	"strings"
 	"time"
 
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
 )
-
-var errMfaPushTooFast = errors.New("please wait for 20 seconds before sending again")
 
 type mfaStepUpParams struct {
 	Owner        string `json:"owner"`
@@ -42,6 +39,9 @@ type mfaStepUpSubject struct {
 	application *object.Application
 	// the user, or the application when it acts for the user with its client credentials
 	caller string
+	// the application is the caller, or the one that the access token of the session was issued to: a proof
+	// is made only for such an application, never for the signup application of a plain session
+	bound bool
 }
 
 // MfaVerifyResult is the response of a passed check: it never carries the factor itself
@@ -49,6 +49,11 @@ type MfaVerifyResult struct {
 	Verified   bool   `json:"verified"`
 	ProofToken string `json:"proofToken,omitempty"`
 	ExpiresIn  int    `json:"expiresIn,omitempty"`
+}
+
+// responseMfaRefusal answers a refusal with its outcome in "data", which the error mask leaves alone
+func (c *ApiController) responseMfaRefusal(outcome string, msg string) {
+	c.ResponseErrorWithCode(outcome, msg, outcome)
 }
 
 func (c *ApiController) getMfaStepUpParams() *mfaStepUpParams {
@@ -67,7 +72,7 @@ func (c *ApiController) getMfaStepUpParams() *mfaStepUpParams {
 	if strings.HasPrefix(c.Ctx.Input.Header("Content-Type"), "application/json") && len(c.Ctx.Input.RequestBody) > 0 {
 		err := json.Unmarshal(c.Ctx.Input.RequestBody, params)
 		if err != nil {
-			c.ResponseError(err.Error())
+			c.responseMfaRefusal(object.MfaOutcomeBadRequest, err.Error())
 			return nil
 		}
 	}
@@ -79,7 +84,7 @@ func (c *ApiController) getMfaStepUpParams() *mfaStepUpParams {
 func (c *ApiController) getMfaStepUpSubject(params *mfaStepUpParams) *mfaStepUpSubject {
 	callerId := c.GetSessionUsername()
 	if callerId == "" {
-		c.ResponseError(c.T("general:Please sign in first"))
+		c.responseMfaRefusal(object.MfaOutcomeUnauthorized, c.T("general:Please sign in first"))
 		return nil
 	}
 
@@ -91,7 +96,7 @@ func (c *ApiController) getMfaStepUpSubject(params *mfaStepUpParams) *mfaStepUpS
 
 	// the user is the one signed in, never one that the request names
 	if (params.Owner != "" || params.Name != "") && util.GetId(params.Owner, params.Name) != callerId {
-		c.ResponseError(c.T("auth:Unauthorized operation"))
+		c.responseMfaRefusal(object.MfaOutcomeUnauthorized, c.T("auth:Unauthorized operation"))
 		return nil
 	}
 
@@ -107,6 +112,7 @@ func (c *ApiController) getMfaStepUpSubject(params *mfaStepUpParams) *mfaStepUpS
 	_, clientId := c.GetSessionOidc()
 	if clientId != "" {
 		subject.application, err = object.GetApplicationByClientId(clientId)
+		subject.bound = subject.application != nil
 	} else {
 		subject.application, err = object.GetApplicationByUser(subject.user)
 	}
@@ -120,7 +126,7 @@ func (c *ApiController) getMfaStepUpSubject(params *mfaStepUpParams) *mfaStepUpS
 func (c *ApiController) getMfaStepUpSubjectOfApplication(subject *mfaStepUpSubject, params *mfaStepUpParams) *mfaStepUpSubject {
 	// a dynamically registered client is created by anyone, it never acts for a user
 	if !strings.HasPrefix(subject.caller, "app/") {
-		c.ResponseError(c.T("auth:Unauthorized operation"))
+		c.responseMfaRefusal(object.MfaOutcomeUnauthorized, c.T("auth:Unauthorized operation"))
 		return nil
 	}
 
@@ -129,8 +135,8 @@ func (c *ApiController) getMfaStepUpSubjectOfApplication(subject *mfaStepUpSubje
 		c.ResponseError(err.Error())
 		return nil
 	}
-	if application == nil || params.Owner != application.Organization || params.Name == "" {
-		c.ResponseError(c.T("auth:Unauthorized operation"))
+	if application == nil || application.IsDynamicClient() || params.Owner != application.Organization || params.Name == "" {
+		c.responseMfaRefusal(object.MfaOutcomeUnauthorized, c.T("auth:Unauthorized operation"))
 		return nil
 	}
 
@@ -140,14 +146,14 @@ func (c *ApiController) getMfaStepUpSubjectOfApplication(subject *mfaStepUpSubje
 		return nil
 	}
 	if user != nil && !canApplicationCheckMfaOf(application, user) {
-		c.ResponseError(c.T("auth:Unauthorized operation"))
+		c.responseMfaRefusal(object.MfaOutcomeUnauthorized, c.T("auth:Unauthorized operation"))
 		return nil
 	}
 	if !c.checkMfaStepUpUser(user) {
 		return nil
 	}
 
-	subject.user, subject.application = user, application
+	subject.user, subject.application, subject.bound = user, application, true
 	return subject
 }
 
@@ -159,11 +165,11 @@ func canApplicationCheckMfaOf(application *object.Application, user *object.User
 
 func (c *ApiController) checkMfaStepUpUser(user *object.User) bool {
 	if user == nil || user.IsDeleted {
-		c.ResponseError(c.T("general:The user doesn't exist"))
+		c.responseMfaRefusal(object.MfaOutcomeForbidden, c.T("general:The user doesn't exist"))
 		return false
 	}
 	if user.IsForbidden {
-		c.ResponseError(object.GetUserForbiddenMessage(user, c.GetAcceptLanguage()))
+		c.responseMfaRefusal(object.MfaOutcomeForbidden, object.GetUserForbiddenMessage(user, c.GetAcceptLanguage()))
 		return false
 	}
 	return true
@@ -180,13 +186,13 @@ func (c *ApiController) addMfaStepUpRecord(action string, subject *mfaStepUpSubj
 // MfaVerify
 // @Title MfaVerify
 // @Tag MFA API
-// @Description verify a factor that the signed-in user enrolled, e.g. before a sensitive action. The factor is always the stored one, the master verification code of the organization is not accepted, and a passcode works once. An application with client credentials may name the user (owner and name) of its own organization.
-// @Param   mfaType      formData string true  "The enrolled MFA type (app/sms/email/push/radius)"
-// @Param   passcode     formData string false "The passcode, or the id of the approved push request"
+// @Description verify a factor that the signed-in user enrolled, e.g. before a sensitive action. The factor is always the stored one, the master verification code of the organization is not accepted, and a passcode works once, here and at the sign-in. An application with client credentials may name the user (owner and name) of its own organization. A refusal is an error whose "data" is its outcome: mfa-wrong-code, mfa-rate-limited, mfa-not-enrolled, mfa-bad-request, mfa-forbidden or mfa-unauthorized; the error mask leaves it alone.
+// @Param   mfaType      formData string true  "The enrolled MFA type (app/sms/email)"
+// @Param   passcode     formData string false "The passcode"
 // @Param   recoveryCode formData string false "A recovery code, used instead of the passcode, it works once"
 // @Param   owner        formData string false "The owner of the user, for an application with client credentials"
 // @Param   name         formData string false "The name of the user, for an application with client credentials"
-// @Param   proof        formData string false "true to get a signed, short-lived proof of the check"
+// @Param   proof        formData string false "true to get a signed, short-lived proof of the check, for an application with client credentials or an access token"
 // @Param   action       formData string false "The action that the proof approves, kept in the proof"
 // @Param   nonce        formData string false "A value of the caller, kept in the proof"
 // @Success 200 {object} controllers.Response The Response object
@@ -207,9 +213,19 @@ func (c *ApiController) MfaVerify() {
 		mfaType = object.MfaRecoveryType
 	}
 
-	if params.Proof && subject.application == nil {
-		c.ResponseError("the application of the check is not known")
-		return
+	// the proof is prepared before the check: one that can't be made must not use up the code
+	var signer *object.MfaProofSigner
+	if params.Proof {
+		if !subject.bound {
+			c.responseMfaRefusal(object.MfaOutcomeBadRequest, "a proof is made only for an application with client credentials or an access token of one")
+			return
+		}
+		var err error
+		signer, err = object.NewMfaProofSigner(subject.application, subject.user, params.Action, params.Nonce, c.Ctx.Request.Host)
+		if err != nil {
+			c.responseMfaError(err)
+			return
+		}
 	}
 
 	err := object.VerifyEnrolledMfa(subject.user, &object.MfaStepUpCheck{
@@ -221,13 +237,18 @@ func (c *ApiController) MfaVerify() {
 	})
 	c.addMfaStepUpRecord("mfa-verify", subject, mfaType, err)
 	if err != nil {
-		c.ResponseError(err.Error())
+		c.responseMfaError(err)
 		return
 	}
 
+	// the user's own session may now change the factors for a while, see checkFreshMfa
+	if !object.IsAppUser(subject.caller) {
+		c.setMfaFresh(subject.user.GetId())
+	}
+
 	result := &MfaVerifyResult{Verified: true}
-	if params.Proof {
-		result.ProofToken, err = object.GenerateMfaProofToken(subject.application, subject.user, mfaType, params.Action, params.Nonce, time.Now(), c.Ctx.Request.Host)
+	if signer != nil {
+		result.ProofToken, err = signer.Sign(mfaType, time.Now())
 		if err != nil {
 			c.ResponseError(err.Error())
 			return
@@ -240,8 +261,8 @@ func (c *ApiController) MfaVerify() {
 // MfaSend
 // @Title MfaSend
 // @Tag MFA API
-// @Description send a code of the enrolled email, SMS or push factor of the signed-in user, to the destination stored in the user only
-// @Param   mfaType formData string true  "The enrolled MFA type (email/sms/push)"
+// @Description send a code of the enrolled email or SMS factor of the signed-in user, to the destination stored in the user only. A refusal is an error whose "data" is its outcome: mfa-rate-limited, mfa-not-enrolled, mfa-bad-request, mfa-forbidden or mfa-unauthorized.
+// @Param   mfaType formData string true  "The enrolled MFA type (email/sms)"
 // @Param   owner   formData string false "The owner of the user, for an application with client credentials"
 // @Param   name    formData string false "The name of the user, for an application with client credentials"
 // @Success 200 {object} controllers.Response The Response object
@@ -262,46 +283,17 @@ func (c *ApiController) MfaSend() {
 		return
 	}
 
-	var err error
-	var challengeId string
-	switch params.MfaType {
-	case object.EmailType, object.SmsType:
-		err = object.SendMfaStepUpCode(subject.application, subject.user, params.MfaType, util.GetClientIpFromRequest(c.Ctx.Request), c.Ctx.Request.Host, c.GetAcceptLanguage())
-	case object.PushType:
-		challengeId, err = c.sendMfaStepUpPush(subject)
-	default:
-		c.ResponseError("Invalid multi-factor authentication type")
-		return
-	}
-	c.addMfaStepUpRecord("mfa-send", subject, params.MfaType, err)
-	if err != nil {
-		c.ResponseError(err.Error())
+	// a push is never sent for a step-up check: the page asking for it could approve it itself
+	if params.MfaType != object.EmailType && params.MfaType != object.SmsType {
+		c.responseMfaRefusal(object.MfaOutcomeBadRequest, "Invalid multi-factor authentication type")
 		return
 	}
 
-	if challengeId != "" {
-		c.ResponseOk(challengeId)
+	err := object.SendMfaStepUpCode(subject.application, subject.user, params.MfaType, util.GetClientIpFromRequest(c.Ctx.Request), c.Ctx.Request.Host, c.GetAcceptLanguage())
+	c.addMfaStepUpRecord("mfa-send", subject, params.MfaType, err)
+	if err != nil {
+		c.responseMfaError(err)
 		return
 	}
 	c.ResponseOk()
-}
-
-func (c *ApiController) sendMfaStepUpPush(subject *mfaStepUpSubject) (string, error) {
-	mfaProps, err := object.GetEnrolledMfaProps(subject.user, object.PushType)
-	if err != nil {
-		return "", err
-	}
-
-	userId := subject.user.GetId()
-	if value, ok := lastPushTimes.Load(userId); ok && time.Since(value.(time.Time)) < 20*time.Second {
-		return "", errMfaPushTooFast
-	}
-	lastPushTimes.Store(userId, time.Now())
-
-	origin := object.GetFrontendOrigin(c.Ctx.Request.Host)
-	challenge, err := object.SendPushChallenge(userId, mfaProps.URL, mfaProps.Secret, subject.application.Name, util.GetClientIpFromRequest(c.Ctx.Request), c.Ctx.Request.UserAgent(), origin)
-	if err != nil {
-		return "", err
-	}
-	return challenge.Id, nil
 }

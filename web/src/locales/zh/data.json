@@ -1476,6 +1476,7 @@
     "Please bind your phone first, the system automatically uses the phone for multi-factor authentication": "请先绑定手机号，之后会自动使用该手机号作为多因素认证的方式",
     "Please confirm the information below": "请确认以下信息",
     "Please save this recovery code. Once your device cannot provide an authentication code, you can reset mfa authentication by this recovery code": "请保存此恢复代码。一旦您的设备无法提供身份验证码，您可以通过此恢复码重置多因素认证",
+    "Please verify your multi-factor authentication before changing it": "Please verify your multi-factor authentication before changing it",
     "Protect your account with Multi-factor authentication": "通过多因素认证保护您的帐户",
     "Push notification receiver": "推送通知接收者",
     "Push notification receiver, empty for the linked account": "接收人，留空则用已绑定的账号",

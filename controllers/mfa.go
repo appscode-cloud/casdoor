@@ -17,6 +17,7 @@ package controllers
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/casdoor/casdoor/object"
 	"github.com/casdoor/casdoor/util"
@@ -25,10 +26,13 @@ import (
 // MfaSetupInitiate
 // @Title MfaSetupInitiate
 // @Tag MFA API
-// @Description setup MFA
+// @Description setup MFA. Through the user's own session or access token, a user who has a factor shows one first: within 5 minutes of passing /api/mfa/verify or the MFA step of the sign-in in the same session, or in the request with stepUpMfaType and stepUpPasscode, or stepUpRecoveryCode; else the answer is an error with the data mfa-step-up-required. An application with client credentials and an administrator of another user are not asked.
 // @Param   mfaType formData string true "The type of MFA to set up (app/sms/email)"
 // @Param   owner   formData string true "The owner of the user"
 // @Param   name    formData string true "The name of the user"
+// @Param   stepUpMfaType      formData string false "The type of a factor the user has, to show it with the request (app/sms/email)"
+// @Param   stepUpPasscode     formData string false "A passcode of that factor"
+// @Param   stepUpRecoveryCode formData string false "A recovery code, instead of the passcode"
 // @Success 200 {object} controllers.Response The Response object
 // @router /mfa/setup/initiate [post]
 func (c *ApiController) MfaSetupInitiate() {
@@ -70,6 +74,16 @@ func (c *ApiController) MfaSetupInitiate() {
 		return
 	}
 
+	// through the user's own session, a user who has a factor shows one before another is set up
+	selfService := c.isMfaSelfService(user)
+	fresh := false
+	if selfService && user.IsMfaEnabled() {
+		if !c.checkFreshMfa(user) {
+			return
+		}
+		fresh = true
+	}
+
 	issuer := ""
 	if organization != nil && organization.DisplayName != "" {
 		issuer = organization.DisplayName
@@ -86,6 +100,15 @@ func (c *ApiController) MfaSetupInitiate() {
 	recoveryCode := util.GenerateUUID()
 	mfaProps.RecoveryCodes = []string{recoveryCode}
 	mfaProps.MfaRememberInHours = organization.MfaRememberInHours
+
+	// the secret and the recovery code that setup/enable turns on, for a setup through the user's own session
+	if selfService {
+		state := &mfaSetupState{UserId: user.GetId(), MfaType: mfaType, RecoveryCode: recoveryCode, Fresh: fresh, CreatedTime: time.Now().Unix()}
+		if mfaType == object.TotpType {
+			state.Secret = mfaProps.Secret
+		}
+		c.setMfaSetupState(state)
+	}
 
 	resp := mfaProps
 	c.ResponseOk(resp)
@@ -109,6 +132,33 @@ func (c *ApiController) MfaSetupVerify() {
 	if mfaType == "" || passcode == "" {
 		c.ResponseError("missing auth type or passcode")
 		return
+	}
+
+	user, err := object.GetUser(util.GetId(c.Ctx.Request.Form.Get("owner"), c.Ctx.Request.Form.Get("name")))
+	if err != nil {
+		c.ResponseError(err.Error())
+		return
+	}
+	if user == nil {
+		c.ResponseError("User doesn't exist")
+		return
+	}
+
+	// through the user's own session, the TOTP secret is the one that setup/initiate made in this session
+	var state *mfaSetupState
+	if c.isMfaSelfService(user) {
+		state = c.getMfaSetupState(user, mfaType)
+		if state == nil {
+			c.ResponseErrorWithCode(object.MfaOutcomeBadRequest, "the MFA setup has expired or was not started in this session, please start it again", object.MfaOutcomeBadRequest)
+			return
+		}
+		if mfaType == object.TotpType {
+			if secret != "" && secret != state.Secret {
+				c.ResponseErrorWithCode(object.MfaOutcomeBadRequest, "the totp secret is not the one of the MFA setup", object.MfaOutcomeBadRequest)
+				return
+			}
+			secret = state.Secret
+		}
 	}
 
 	config := &object.MfaProps{
@@ -167,24 +217,19 @@ func (c *ApiController) MfaSetupVerify() {
 		return
 	}
 
-	user, err := object.GetUser(util.GetId(c.Ctx.Request.Form.Get("owner"), c.Ctx.Request.Form.Get("name")))
+	verifiedDest := getMfaSetupDest(mfaType, dest, countryCode)
+	err = object.VerifyMfaSetupWithLimit(user, func() error { return object.SetupVerifyForUser(user, mfaUtil, passcode, c.GetAcceptLanguage()) }, c.GetAcceptLanguage())
 	if err != nil {
 		c.ResponseError(err.Error())
-		return
-	}
-	if user == nil {
-		c.ResponseError("User doesn't exist")
 		return
 	}
 
-	verifiedDest := getMfaSetupDest(mfaType, dest, countryCode)
-	err = object.VerifyMfaWithLimit(user, func() error { return mfaUtil.SetupVerify(passcode, c.GetAcceptLanguage()) }, c.GetAcceptLanguage())
-	if err != nil {
-		c.ResponseError(err.Error())
-	} else {
-		c.SetSession(mfaSetupVerifiedDestSession, verifiedDest)
-		c.ResponseOk(http.StatusText(http.StatusOK))
+	c.SetSession(mfaSetupVerifiedDestSession, verifiedDest)
+	if state != nil {
+		state.Verified = getMfaSetupFingerprint(mfaType, secret, dest, countryCode)
+		c.setMfaSetupState(state)
 	}
+	c.ResponseOk(http.StatusText(http.StatusOK))
 }
 
 const mfaSetupVerifiedDestSession = "mfaSetupVerifiedDest"
@@ -215,10 +260,13 @@ func (c *ApiController) checkMfaSetupDest(user *object.User, mfaType string) boo
 // MfaSetupEnable
 // @Title MfaSetupEnable
 // @Tag MFA API
-// @Description enable totp
+// @Description enable totp. Through the user's own session or access token, a user who has a factor shows one first: within 5 minutes of passing /api/mfa/verify or the MFA step of the sign-in in the same session, or in the request with stepUpMfaType and stepUpPasscode, or stepUpRecoveryCode; else the answer is an error with the data mfa-step-up-required. An application with client credentials and an administrator of another user are not asked. Through the user's own session, it turns on the TOTP secret and the recovery code that setup/initiate made in that session, once setup/verify passed a code of it.
 // @Param   owner   formData string true "The owner of the user"
 // @Param   name    formData string true "The name of the user"
 // @Param   mfaType formData string true "The MFA auth type"
+// @Param   stepUpMfaType      formData string false "The type of a factor the user has, to show it with the request (app/sms/email)"
+// @Param   stepUpPasscode     formData string false "A passcode of that factor"
+// @Param   stepUpRecoveryCode formData string false "A recovery code, instead of the passcode"
 // @Success 200 {object} controllers.Response The Response object
 // @router /mfa/setup/enable [post]
 func (c *ApiController) MfaSetupEnable() {
@@ -239,6 +287,24 @@ func (c *ApiController) MfaSetupEnable() {
 	if user == nil {
 		c.ResponseError("User doesn't exist")
 		return
+	}
+
+	// through the user's own session, the factor turned on is the one set up and verified in this session, with
+	// its recovery code, and a user who has a factor already showed one for it
+	var state *mfaSetupState
+	if c.isMfaSelfService(user) {
+		state = c.getMfaSetupState(user, mfaType)
+		if state == nil {
+			c.ResponseErrorWithCode(object.MfaOutcomeBadRequest, "the MFA setup has expired or was not started in this session, please start it again", object.MfaOutcomeBadRequest)
+			return
+		}
+		if user.IsMfaEnabled() && !state.Fresh && !c.checkFreshMfa(user) {
+			return
+		}
+		if mfaType == object.TotpType {
+			secret = state.Secret
+		}
+		recoveryCodes = state.RecoveryCode
 	}
 
 	config := &object.MfaProps{
@@ -323,6 +389,11 @@ func (c *ApiController) MfaSetupEnable() {
 		return
 	}
 
+	if state != nil && state.Verified != getMfaSetupEnabledFingerprint(user, mfaType, secret, dest) {
+		c.ResponseErrorWithCode(object.MfaOutcomeBadRequest, "the MFA setup has not been verified", object.MfaOutcomeBadRequest)
+		return
+	}
+
 	err = mfaUtil.Enable(user)
 	if err != nil {
 		c.ResponseError(err.Error())
@@ -330,15 +401,32 @@ func (c *ApiController) MfaSetupEnable() {
 	}
 
 	c.DelSession(mfaSetupVerifiedDestSession)
+	c.clearMfaSetupState()
 	c.ResponseOk(http.StatusText(http.StatusOK))
+}
+
+// getMfaSetupEnabledFingerprint names what setup/enable turns on, as getMfaSetupFingerprint names what a code
+// was verified for: an email or SMS factor is the user's own address or phone, see SmsMfa.Enable
+func getMfaSetupEnabledFingerprint(user *object.User, mfaType string, secret string, dest string) string {
+	switch mfaType {
+	case object.EmailType:
+		return getMfaSetupFingerprint(mfaType, "", user.Email, "")
+	case object.SmsType:
+		return getMfaSetupFingerprint(mfaType, "", user.Phone, user.CountryCode)
+	default:
+		return getMfaSetupFingerprint(mfaType, secret, dest, "")
+	}
 }
 
 // DeleteMfa
 // @Title DeleteMfa
 // @Tag MFA API
-// @Description Delete MFA
+// @Description Delete MFA. Through the user's own session or access token, a user who has a factor shows one first: within 5 minutes of passing /api/mfa/verify or the MFA step of the sign-in in the same session, or in the request with stepUpMfaType and stepUpPasscode, or stepUpRecoveryCode; else the answer is an error with the data mfa-step-up-required. An application with client credentials and an administrator of another user are not asked.
 // @Param   owner formData string true "The owner of the user"
 // @Param   name  formData string true "The name of the user"
+// @Param   stepUpMfaType      formData string false "The type of a factor the user has, to show it with the request (app/sms/email)"
+// @Param   stepUpPasscode     formData string false "A passcode of that factor"
+// @Param   stepUpRecoveryCode formData string false "A recovery code, instead of the passcode"
 // @Success 200 {object} controllers.Response The Response object
 // @router /delete-mfa/ [post]
 func (c *ApiController) DeleteMfa() {
@@ -353,6 +441,11 @@ func (c *ApiController) DeleteMfa() {
 	}
 	if user == nil {
 		c.ResponseError("User doesn't exist")
+		return
+	}
+
+	// through the user's own session, the factors are removed only by someone who just showed one
+	if c.isMfaSelfService(user) && !c.checkFreshMfa(user) {
 		return
 	}
 

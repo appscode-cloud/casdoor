@@ -260,8 +260,9 @@ func handleOtpResponse(w radius.ResponseWriter, r *radius.Request, organization 
 		return
 	}
 
+	// a code works once, whichever of the RADIUS server, the sign-in and the step-up check sees it first
 	mfaUtil := object.GetMfaUtil(mfaProp.MfaType, mfaProp)
-	if object.VerifyMfaWithLimit(user, func() error { return mfaUtil.Verify(passcode, "en") }, "en") != nil {
+	if object.VerifyMfaWithLimit(user, func() error { return object.VerifyUserMfaPasscode(user, mfaUtil, passcode, "en") }, "en") != nil {
 		w.Write(r.Response(radius.CodeAccessReject))
 		return
 	}

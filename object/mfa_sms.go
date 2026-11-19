@@ -15,8 +15,6 @@
 package object
 
 import (
-	"errors"
-
 	"github.com/casdoor/casdoor/util"
 )
 
@@ -31,20 +29,9 @@ func (mfa *SmsMfa) Initiate(userId string, issuer string) (*MfaProps, error) {
 	return &mfaProps, nil
 }
 
+// SetupVerify checks the code sent to the address or phone being set up, and uses it up
 func (mfa *SmsMfa) SetupVerify(passCode string, lang string) error {
-	if !util.IsEmailValid(mfa.Secret) {
-		mfa.Secret, _ = util.GetE164Number(mfa.Secret, mfa.CountryCode)
-	}
-
-	result, err := CheckVerificationCode(mfa.Secret, passCode, lang)
-	if err != nil {
-		return err
-	}
-	if result.Code != VerificationSuccess {
-		return errors.New(result.Msg)
-	}
-
-	return nil
+	return mfa.Verify(passCode, lang)
 }
 
 func (mfa *SmsMfa) Enable(user *User) error {
@@ -72,20 +59,20 @@ func (mfa *SmsMfa) Enable(user *User) error {
 	return nil
 }
 
+// Verify checks the code sent to the address or phone, and uses it up in the same step: a code works once
 func (mfa *SmsMfa) Verify(passCode string, lang string) error {
 	if !util.IsEmailValid(mfa.Secret) {
 		mfa.Secret, _ = util.GetE164Number(mfa.Secret, mfa.CountryCode)
 	}
 
-	result, err := CheckVerificationCode(mfa.Secret, passCode, lang)
+	result, err := UseVerificationCode(mfa.Secret, passCode, lang)
 	if err != nil {
 		return err
 	}
 	if result.Code != VerificationSuccess {
-		return errors.New(result.Msg)
+		return NewMfaError(MfaOutcomeWrongCode, result.Msg)
 	}
-
-	return DisableVerificationCode(mfa.Secret)
+	return nil
 }
 
 func NewSmsMfaUtil(config *MfaProps) *SmsMfa {

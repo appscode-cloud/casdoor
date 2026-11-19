@@ -1476,6 +1476,7 @@
     "Please bind your phone first, the system automatically uses the phone for multi-factor authentication": "Please bind your phone first, the system automatically uses the phone for multi-factor authentication",
     "Please confirm the information below": "Please confirm the information below",
     "Please save this recovery code. Once your device cannot provide an authentication code, you can reset mfa authentication by this recovery code": "Please save this recovery code. Once your device cannot provide an authentication code, you can reset mfa authentication by this recovery code",
+    "Please verify your multi-factor authentication before changing it": "Please verify your multi-factor authentication before changing it",
     "Protect your account with Multi-factor authentication": "Protect your account with Multi-factor authentication",
     "Push notification receiver": "Push notification receiver",
     "Push notification receiver, empty for the linked account": "Push notification receiver, empty for the linked account",

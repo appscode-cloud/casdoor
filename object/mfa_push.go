@@ -47,8 +47,8 @@ func (mfa *PushMfa) SetupVerify(passCode string, lang string) error {
 		return errors.New("push notification provider is not configured")
 	}
 
-	// the passcode is the id of the sign-in request that the user approved on the phone
-	return consumePushChallenge(passCode, mfa.URL, mfa.Secret)
+	// the passcode is the id of the setup request that the user approved on the phone
+	return consumePushChallenge(passCode, mfa.URL, mfa.Secret, "", PushPurposeSetup)
 }
 
 func (mfa *PushMfa) Enable(user *User) error {
@@ -76,6 +76,12 @@ func (mfa *PushMfa) Enable(user *User) error {
 }
 
 func (mfa *PushMfa) Verify(passCode string, lang string) error {
+	return mfa.verifyForUser("", passCode, PushPurposeSignin)
+}
+
+// verifyForUser checks that the passcode is the id of a request of the purpose that the user approved on the
+// phone, for the user when userId is given
+func (mfa *PushMfa) verifyForUser(userId string, passCode string, purpose string) error {
 	if mfa.Secret == "" {
 		return errors.New("push notification receiver is required")
 	}
@@ -84,7 +90,7 @@ func (mfa *PushMfa) Verify(passCode string, lang string) error {
 		return errors.New("push notification provider is not configured")
 	}
 
-	return consumePushChallenge(passCode, mfa.URL, mfa.Secret)
+	return consumePushChallenge(passCode, mfa.URL, mfa.Secret, userId, purpose)
 }
 
 func (mfa *PushMfa) sendPushNotification(title string, message string) error {

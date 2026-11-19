@@ -82,8 +82,11 @@ func (c *ApiController) SendMfaPush() {
 	}
 	lastPushTimes.Store(userId, time.Now())
 
-	origin := object.GetFrontendOrigin(c.Ctx.Request.Host)
-	challenge, err := object.SendPushChallenge(userId, providerId, receiver, application, util.GetClientIpFromRequest(c.Ctx.Request), c.Ctx.Request.UserAgent(), origin)
+	purpose := object.PushPurposeSignin
+	if isSetup {
+		purpose = object.PushPurposeSetup
+	}
+	challenge, err := object.SendPushChallenge(userId, providerId, receiver, application, purpose, util.GetClientIpFromRequest(c.Ctx.Request), c.Ctx.Request.UserAgent(), c.Ctx.Request.Host)
 	if err != nil {
 		c.ResponseError(err.Error())
 		return
@@ -95,8 +98,8 @@ func (c *ApiController) SendMfaPush() {
 // GetMfaPushChallenge
 // @Title GetMfaPushChallenge
 // @Tag MFA API
-// @Description get a sign-in confirmation request, for the confirmation page and the sign-in page waiting for it
-// @Param id query string true "the request id"
+// @Description get a sign-in confirmation request, for the sign-in page waiting for it (by its id) and the confirmation page opened from the phone (by the approval token of its link)
+// @Param id query string true "the request id, or the approval token of the link sent to the phone"
 // @Success 200 {object} object.PushChallenge The Response object
 // @router /mfa/push/challenge [get]
 func (c *ApiController) GetMfaPushChallenge() {
@@ -111,13 +114,18 @@ func (c *ApiController) GetMfaPushChallenge() {
 // AnswerMfaPushChallenge
 // @Title AnswerMfaPushChallenge
 // @Tag MFA API
-// @Description approve or deny a sign-in confirmation request on the phone
-// @Param id      query string true "the request id"
+// @Description approve or deny a sign-in confirmation request on the phone. It takes the approval token of the link sent to the phone, never the request id that the page asking for the push holds.
+// @Param id      query string true "the approval token of the link sent to the phone"
 // @Param approve query string true "true or false"
 // @Success 200 {object} controllers.Response The Response object
 // @router /mfa/push/answer [post]
 func (c *ApiController) AnswerMfaPushChallenge() {
-	challenge, err := object.AnswerPushChallenge(c.Ctx.Input.Query("id"), c.Ctx.Input.Query("approve") == "true")
+	token := c.Ctx.Input.Query("token")
+	if token == "" {
+		// the confirmation page sends the value of its link as "id"
+		token = c.Ctx.Input.Query("id")
+	}
+	challenge, err := object.AnswerPushChallenge(token, c.Ctx.Input.Query("approve") == "true")
 	if err != nil {
 		c.ResponseError(err.Error())
 		return

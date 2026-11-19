@@ -9,6 +9,7 @@ import {Steps} from "@/components/ui/steps";
 import {Loading} from "@/components/common/Loading";
 import {CheckPasswordForm} from "@/components/auth/mfa/CheckPasswordForm";
 import {MfaEnableForm} from "@/components/auth/mfa/MfaEnableForm";
+import {MfaStepUpDialog, isMfaStepUpRequired} from "@/components/auth/mfa/MfaStepUpDialog";
 import {MfaVerifySetupForm} from "@/components/auth/mfa/MfaVerifySetupForm";
 import {
   EmailMfaType,
@@ -65,6 +66,9 @@ export default function MfaSetupPage() {
   const [applicationError, setApplicationError] = React.useState<string | null>(null);
   const [mfaProps, setMfaProps] = React.useState<any>(null);
   const [initiating, setInitiating] = React.useState(false);
+  // a user who has a factor shows one before setting up another, see MfaStepUpDialog
+  const [needsStepUp, setNeedsStepUp] = React.useState(false);
+  const [stepUpOpen, setStepUpOpen] = React.useState(false);
   const [verified, setVerified] = React.useState<{dest?: string; countryCode?: string; secret?: string}>({});
 
   React.useEffect(() => {
@@ -103,7 +107,11 @@ export default function MfaSetupPage() {
     MfaBackend.MfaSetupInitiate({mfaType, ...account})
       .then((res: any) => {
         if (res.status === "ok") {
+          setNeedsStepUp(false);
           setMfaProps(res.data);
+        } else if (isMfaStepUpRequired(res)) {
+          setNeedsStepUp(true);
+          setStepUpOpen(true);
         } else {
           Setting.showMessage("error", `${i18next.t("mfa:Failed to initiate MFA")}: ${res.msg}`);
         }
@@ -161,6 +169,16 @@ export default function MfaSetupPage() {
               {i18next.t("mfa:Failed to initiate MFA")}: {applicationError}
             </AlertDescription>
           </Alert>
+        );
+      }
+      if (needsStepUp && !initiating) {
+        return (
+          <div className="space-y-4 text-center">
+            <p className="text-sm text-muted-foreground">
+              {i18next.t("mfa:Please verify your multi-factor authentication before changing it")}
+            </p>
+            <Button onClick={() => setStepUpOpen(true)}>{i18next.t("forget:Verify")}</Button>
+          </div>
         );
       }
       if (initiating || mfaProps === null) {
@@ -250,6 +268,12 @@ export default function MfaSetupPage() {
       <Card>
         <CardContent className="pt-6">{renderStep()}</CardContent>
       </Card>
+      <MfaStepUpDialog
+        open={stepUpOpen}
+        onOpenChange={setStepUpOpen}
+        mfaItems={account.multiFactorAuths ?? []}
+        onSuccess={initMfaProps}
+      />
     </div>
   );
 }

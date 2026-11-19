@@ -307,6 +307,34 @@ func CheckVerificationCode(dest string, code string, lang string) (*VerifyResult
 	if err != nil {
 		return nil, err
 	}
+	return checkVerificationRecord(record, code, lang)
+}
+
+// UseVerificationCode checks the code sent to dest and marks it used in the same step: the record is changed
+// only while it is unused, so of two checks of one code only one passes, on any replica
+func UseVerificationCode(dest string, code string, lang string) (*VerifyResult, error) {
+	record, err := getVerificationRecord(dest)
+	if err != nil {
+		return nil, err
+	}
+
+	result, err := checkVerificationRecord(record, code, lang)
+	if err != nil || result.Code != VerificationSuccess {
+		return result, err
+	}
+
+	affected, err := ormer.Engine.Table(&VerificationRecord{}).Where("owner = ? AND name = ? AND is_used = ?", record.Owner, record.Name, false).
+		Update(map[string]interface{}{"is_used": true})
+	if err != nil {
+		return nil, err
+	}
+	if affected == 0 {
+		return &VerifyResult{noRecordError, i18n.Translate(lang, "verification:The verification code has already been used!")}, nil
+	}
+	return result, nil
+}
+
+func checkVerificationRecord(record *VerificationRecord, code string, lang string) (*VerifyResult, error) {
 	if record == nil {
 		return &VerifyResult{noRecordError, i18n.Translate(lang, "verification:The verification code has not been sent yet!")}, nil
 	} else if record.IsUsed {

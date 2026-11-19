@@ -70,5 +70,6 @@ func (c *ApiController) verifyMfaPasscode(user *object.User, mfaUtil object.MfaI
 	if err != nil || passed {
 		return err
 	}
-	return mfaUtil.Verify(passcode, c.GetAcceptLanguage())
+	// a TOTP code works once, whichever of the sign-in, the step-up check and the RADIUS server sees it first
+	return object.VerifyUserMfaPasscode(user, mfaUtil, passcode, c.GetAcceptLanguage())
 }

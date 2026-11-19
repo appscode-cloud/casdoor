@@ -1474,6 +1474,7 @@
     "Please bind your phone first, the system automatically uses the phone for multi-factor authentication": "Najpierw powiąż swój telefon, system automatycznie użyje go do uwierzytelniania wieloskładnikowego",
     "Please confirm the information below": "Potwierdź poniższe informacje",
     "Please save this recovery code. Once your device cannot provide an authentication code, you can reset mfa authentication by this recovery code": "Zapisz ten kod odzyskiwania. Jeśli Twoje urządzenie nie może dostarczyć kodu uwierzytelniającego, możesz zresetować uwierzytelnianie MFA za pomocą tego kodu",
+    "Please verify your multi-factor authentication before changing it": "Please verify your multi-factor authentication before changing it",
     "Protect your account with Multi-factor authentication": "Chroń swoje konto za pomocą uwierzytelniania wieloskładnikowego",
     "Push notification receiver": "Odbiorca powiadomień push",
     "Push notification receiver, empty for the linked account": "Odbiorca, puste dla połączonego konta",

@@ -31,6 +31,7 @@ import {CropperDivModal, UserImageField} from "@/components/user/CropperDivModal
 import {ThirdPartyLogins} from "@/components/user/OAuthWidget";
 import {AccountItemRow, AccountItemsProvider} from "@/components/user/AccountItemRow";
 import {EnableMfaButton} from "@/components/user/EnableMfaButton";
+import {MfaStepUpDialog, isMfaStepUpRequired} from "@/components/auth/mfa/MfaStepUpDialog";
 import {TotpMfaType} from "@/components/auth/mfa/constants";
 import {MfaItemsTable} from "@/components/auth/mfa/MfaItemsTable";
 import {isAccountItemVisible} from "@/lib/account-items";
@@ -87,6 +88,7 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
   const [organization, setOrganization] = React.useState<any>({});
   const [mfaItems, setMfaItems] = React.useState<any[]>([]);
   const [removingMfa, setRemovingMfa] = React.useState(false);
+  const [mfaStepUpOpen, setMfaStepUpOpen] = React.useState(false);
   // the signup application drives the 3rd-party login rows and the reset-code flow
   const [application, setApplication] = React.useState<any>(null);
   const [transactions, setTransactions] = React.useState<any[]>([]);
@@ -227,6 +229,9 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
         if (res.status === "ok") {
           Setting.showMessage("success", i18next.t("general:Successfully deleted"));
           setMfaItems(res.data ?? []);
+        } else if (isMfaStepUpRequired(res)) {
+          // removing the user's own factors needs one of them first
+          setMfaStepUpOpen(true);
         } else {
           Setting.showMessage("error", i18next.t("general:Failed to delete"));
         }
@@ -1266,6 +1271,7 @@ export default function UserEditPage({self}: {self?: boolean} = {}) {
           <PersonalDataActions user={user} organization={userOrganization} />
         </div>
       ) : null}
+      <MfaStepUpDialog open={mfaStepUpOpen} onOpenChange={setMfaStepUpOpen} mfaItems={mfaItems} onSuccess={deleteMfa} />
     </EditPageShell>
   );
 }

@@ -1431,7 +1431,7 @@
                 "tags": [
                     "MFA API"
                 ],
-                "description": ": Delete MFA",
+                "description": ": Delete MFA. Through the user's own session or access token, a user who has a factor shows one first: within 5 minutes of passing /api/mfa/verify or the MFA step of the sign-in in the same session, or in the request with stepUpMfaType and stepUpPasscode, or stepUpRecoveryCode; else the answer is an error with the data mfa-step-up-required. An application with client credentials and an administrator of another user are not asked.",
                 "operationId": "ApiController.DeleteMfa",
                 "responses": {
                     "200": {
@@ -4993,13 +4993,13 @@
                 "tags": [
                     "MFA API"
                 ],
-                "description": "send a code of the enrolled email, SMS or push factor of the signed-in user, to the destination stored in the user only",
+                "description": "send a code of the enrolled email or SMS factor of the signed-in user, to the destination stored in the user only. A refusal is an error whose \"data\" is its outcome: mfa-rate-limited, mfa-not-enrolled, mfa-bad-request, mfa-forbidden or mfa-unauthorized.",
                 "operationId": "ApiController.MfaSend",
                 "parameters": [
                     {
                         "in": "formData",
                         "name": "mfaType",
-                        "description": "The enrolled MFA type (email/sms/push)",
+                        "description": "The enrolled MFA type (email/sms)",
                         "required": true,
                         "type": "string"
                     },
@@ -5033,7 +5033,7 @@
                 "tags": [
                     "MFA API"
                 ],
-                "description": "enable totp",
+                "description": "enable totp. Through the user's own session or access token, a user who has a factor shows one first: within 5 minutes of passing /api/mfa/verify or the MFA step of the sign-in in the same session, or in the request with stepUpMfaType and stepUpPasscode, or stepUpRecoveryCode; else the answer is an error with the data mfa-step-up-required. An application with client credentials and an administrator of another user are not asked. Through the user's own session, setup/enable turns on the TOTP secret and the recovery code that setup/initiate made in that session, once setup/verify passed a code of it.",
                 "operationId": "ApiController.MfaSetupEnable",
                 "responses": {
                     "200": {
@@ -5050,7 +5050,7 @@
                 "tags": [
                     "MFA API"
                 ],
-                "description": "setup MFA",
+                "description": "setup MFA. Through the user's own session or access token, a user who has a factor shows one first: within 5 minutes of passing /api/mfa/verify or the MFA step of the sign-in in the same session, or in the request with stepUpMfaType and stepUpPasscode, or stepUpRecoveryCode; else the answer is an error with the data mfa-step-up-required. An application with client credentials and an administrator of another user are not asked.",
                 "operationId": "ApiController.MfaSetupInitiate",
                 "responses": {
                     "200": {
@@ -5084,20 +5084,20 @@
                 "tags": [
                     "MFA API"
                 ],
-                "description": "verify a factor that the signed-in user enrolled, e.g. before a sensitive action. The factor is always the stored one, the master verification code of the organization is not accepted, and a passcode works once. An application with client credentials may name the user (owner and name) of its own organization.",
+                "description": "verify a factor that the signed-in user enrolled, e.g. before a sensitive action. The factor is always the stored one, the master verification code of the organization is not accepted, and a passcode works once, here and at the sign-in. An application with client credentials may name the user (owner and name) of its own organization. A refusal is an error whose \"data\" is its outcome: mfa-wrong-code, mfa-rate-limited, mfa-not-enrolled, mfa-bad-request, mfa-forbidden or mfa-unauthorized; the error mask leaves it alone.",
                 "operationId": "ApiController.MfaVerify",
                 "parameters": [
                     {
                         "in": "formData",
                         "name": "mfaType",
-                        "description": "The enrolled MFA type (app/sms/email/push/radius)",
+                        "description": "The enrolled MFA type (app/sms/email)",
                         "required": true,
                         "type": "string"
                     },
                     {
                         "in": "formData",
                         "name": "passcode",
-                        "description": "The passcode, or the id of the approved push request",
+                        "description": "The passcode",
                         "required": false,
                         "type": "string"
                     },
@@ -5125,7 +5125,7 @@
                     {
                         "in": "formData",
                         "name": "proof",
-                        "description": "true to get a signed, short-lived proof of the check",
+                        "description": "true to get a signed, short-lived proof of the check, for an application with client credentials or an access token",
                         "required": false,
                         "type": "string"
                     },

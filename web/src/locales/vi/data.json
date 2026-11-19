@@ -1474,6 +1474,7 @@
     "Please bind your phone first, the system automatically uses the phone for multi-factor authentication": "Vui lòng liên kết điện thoại trước, hệ thống sẽ tự động sử dụng điện thoại cho xác thực đa yếu tố",
     "Please confirm the information below": "Vui lòng xác nhận thông tin dưới đây",
     "Please save this recovery code. Once your device cannot provide an authentication code, you can reset mfa authentication by this recovery code": "Vui lòng lưu mã khôi phục này. Khi thiết bị không thể cung cấp mã xác thực, bạn có thể đặt lại xác thực mfa bằng mã này",
+    "Please verify your multi-factor authentication before changing it": "Please verify your multi-factor authentication before changing it",
     "Protect your account with Multi-factor authentication": "Bảo vệ tài khoản của bạn với xác thực đa yếu tố",
     "Push notification receiver": "Người nhận thông báo đẩy",
     "Push notification receiver, empty for the linked account": "Người nhận, để trống để dùng tài khoản đã liên kết",

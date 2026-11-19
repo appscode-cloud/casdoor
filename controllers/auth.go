@@ -1573,6 +1573,9 @@ func (c *ApiController) Login() {
 			return
 		}
 
+		// the session that just passed the second factor may change the factors for a while, see checkFreshMfa
+		c.setMfaFresh(user.GetId())
+
 		if c.promptMfaSetupAfterMfa(user) {
 			return
 		}

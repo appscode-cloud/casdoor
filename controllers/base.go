@@ -298,6 +298,8 @@ func (c *ApiController) GetSessionApplication() *object.Application {
 func (c *ApiController) ClearUserSession() {
 	c.SetSessionUsername("")
 	c.SetSessionData(nil)
+	c.DelSession(mfaFreshSession)
+	c.DelSession(mfaSetupSession)
 	_ = c.SessionRegenerateID()
 }
 

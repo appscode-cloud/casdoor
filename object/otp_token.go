@@ -269,6 +269,8 @@ func ImportOtpTokens(owner string, tokensContent string, assignmentsContent stri
 		}
 
 		user.TotpSecret = token.getTotpSecret()
+		// a new secret starts without a used code, its period may be another one
+		user.MfaTotpLastTime = 0
 		if user.PreferredMfaType == "" {
 			user.PreferredMfaType = TotpType
 		}
@@ -276,7 +278,7 @@ func ImportOtpTokens(owner string, tokensContent string, assignmentsContent stri
 			user.Properties = map[string]string{}
 		}
 		user.Properties[otpTokenSerialProperty] = token.Serial
-		_, err = updateUser(user.GetId(), user, []string{"totp_secret", "preferred_mfa_type", "properties"})
+		_, err = updateUser(user.GetId(), user, []string{"totp_secret", "mfa_totp_last_time", "preferred_mfa_type", "properties"})
 		if err != nil {
 			return nil, err
 		}
